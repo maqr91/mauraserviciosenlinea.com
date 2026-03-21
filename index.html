@@ -686,13 +686,11 @@
 
 <script>
 /* ========================= Rastreo ========================= */
-<script>
-/* ========================= Rastreo ========================= */
 const urls = {
   Maritimo:[
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2i-JMsQ4G2mXMfdEyihWcNeI8gzXDIWsSxOta60eGa-NgNDOshNojOB6mYxdHPOWkLKwGWZsdnfIL/pub?gid=0&single=true&output=csv",
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2i-JMsQ4G2mXMfdEyihWcNeI8gzXDIWsSxOta60eGa-NgNDOshNojOB6mYxdHPOWkLKwGWZsdnfIL/pub?gid=135469883&single=true&output=csv",
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2i-JMsQ4G2mXMfdEyihWcNeI8gzXDIWsSxOta60eGa-NgNDOshNojOB6mYxdHPOWkLKwGWZsdnfIL/pub?gid=234453482&single=true&output=csv"
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2i-JMsQ4G2mXMfdEyihWcNeI8gzXDIWsSxOta60eGa-NgNDOshNojOB6mYxdHPOWkLKwGWZsdnfIL/pub?gid=135469883&single=true&output=csv"
+    
   ],
   Aereo:[
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2i-JMsQ4G2mXMfdEyihWcNeI8gzXDIWsSxOta60eGa-NgNDOshNojOB6mYxdHPOWkLKwGWZsdnfIL/pub?gid=1149417296&single=true&output=csv",
@@ -712,13 +710,7 @@ function normalizeImageUrl(url){
   if(url.includes("googleusercontent")) return url;
   return url;
 }
-
-function safe(r,keys){
-  for(const k of keys){
-    if(r && r[k]) return r[k];
-  }
-  return "";
-}
+function safe(r,keys){ for(const k of keys){ if(r && r[k]) return r[k]; } return ""; }
 
 function parseDate(dateString){
   if(!dateString) return 0;
@@ -726,20 +718,15 @@ function parseDate(dateString){
   if(!datePart || !timePart) return 0;
   const [day, month, year] = datePart.split("/");
   const [hour, minute, second] = timePart.split(":");
-  return new Date(
-    parseInt(year,10),
-    parseInt(month,10)-1,
-    parseInt(day,10),
-    parseInt(hour,10),
-    parseInt(minute,10),
-    parseInt(second,10)
-  ).getTime();
+  return new Date(parseInt(year,10), parseInt(month,10)-1, parseInt(day,10), parseInt(hour,10), parseInt(minute,10), parseInt(second,10)).getTime();
 }
 
+/* ✅ NUEVO: Fecha bonita con mes en nombre + AM/PM */
 function formatFechaBonita(dateString){
   if(!dateString) return "";
   const raw = (dateString + "").trim();
 
+  // Espera: DD/MM/YYYY HH:MM:SS
   const [datePart, timePart] = raw.split(" ");
   if(!datePart || !timePart) return raw;
 
@@ -768,27 +755,19 @@ function renderTable(list,type){
   const empty = document.getElementById(`empty${type}`);
   container.innerHTML = "";
   empty.style.display = "none";
-
-  if(!list.length){
-    empty.style.display = "block";
-    return;
-  }
+  if(!list.length){ empty.style.display="block"; return; }
 
   list.sort((a,b)=>parseDate(safe(b,["Fecha","FECHA"])) - parseDate(safe(a,["Fecha","FECHA"])));
-
   if(type === "Compra") list = list.slice(0,40);
 
   list.forEach(r=>{
-    const fechaRaw   = safe(r,["Fecha","FECHA"]);
-    const fecha      = formatFechaBonita(fechaRaw);
+    const fechaRaw = safe(r,["Fecha","FECHA"]);
+    const fecha = formatFechaBonita(fechaRaw);
 
-    const track      = safe(r,["Tracking","Tracking #","Orden","ORDEN"]);
-    const nombre     = safe(r,["Nombre","Cliente","CLIENTE"]);
-    const status     = safe(r,["Status","STATUS"]);
-    const agente     = safe(r,["Agente","AGENTE","Usuario"]);
-    const id         = safe(r,["ID","Id","id"]);
-    const tipoEnvio  = safe(r,["Tipo de Envío","Tipo de Envio","TIPO DE ENVÍO","TIPO DE ENVIO","Tipo Envio"]);
-
+    const track = safe(r,["Tracking","Tracking #","Orden","ORDEN"]);
+    const nombre = safe(r,["Nombre","Cliente","CLIENTE"]);
+    const status = safe(r,["Status","STATUS"]);
+    const agente = safe(r,["Agente","AGENTE","Usuario"]);
     const foto  = normalizeImageUrl(safe(r,["Web url","Web URL"]));
     const foto2 = normalizeImageUrl(safe(r,["Web url2","Web URL2"]));
     const foto3 = normalizeImageUrl(safe(r,["Web url3","Web URL3"]));
@@ -797,24 +776,19 @@ function renderTable(list,type){
     let html = `<div class="result-block">`;
     html += `<p><strong>Fecha:</strong> ${fecha}</p>`;
     html += `<p><strong>Tracking:</strong> ${track}</p>`;
-
     if(type === "Compra"){
       html += `<p><strong>Nombre:</strong> ${nombre}</p>`;
-      if(tipoEnvio) html += `<p><strong>Tipo de Envío:</strong> ${tipoEnvio}</p>`;
       html += `<p><strong>Agente:</strong> ${agente}</p>`;
     } else {
       html += `<p><strong>Status:</strong> <span class="status-pill">${status}</span></p>`;
       html += `<p><strong>Agente:</strong> ${agente}</p>`;
-      if(id) html += `<p><strong>ID:</strong> ${id}</p>`;
     }
-
     html += `<div class="detail-actions">`;
     if(foto)  html += `<button class="view-btn" type="button" onclick="window.open('${foto}','_blank')">📷 Ver foto</button>`;
     if(foto2) html += `<button class="view-btn" type="button" onclick="window.open('${foto2}','_blank')">📷 Ver foto 2</button>`;
     if(foto3) html += `<button class="view-btn" type="button" onclick="window.open('${foto3}','_blank')">📷 Ver foto 3</button>`;
     if(type !== "Compra" && firma) html += `<button class="view-btn" type="button" onclick="window.open('${firma}','_blank')">✍️ Ver firma</button>`;
     html += `</div></div>`;
-
     container.insertAdjacentHTML("beforeend", html);
   });
 }
@@ -826,27 +800,18 @@ async function searchTracking(type){
 
   let data = [];
   const links = Array.isArray(urls[type]) ? urls[type] : [urls[type]];
-
   for(const link of links){
     await new Promise(resolve=>{
       Papa.parse(link + "&t=" + Date.now(),{
-        download:true,
-        header:true,
-        skipEmptyLines:true,
-        complete:res=>{
-          data = data.concat(res.data || []);
-          resolve();
-        },
-        error:()=>{
-          resolve();
-        }
+        download:true, header:true, skipEmptyLines:true,
+        complete:res=>{ data = data.concat(res.data || []); resolve(); }
       });
     });
   }
 
   const filtered = data.filter(r=>{
     const track = safe(r,["Tracking","Tracking #","Orden","ORDEN"]).toLowerCase();
-    const name  = safe(r,["Nombre","Cliente","CLIENTE"]).toLowerCase();
+    const name  = safe(r,["Nombre","Cliente"]).toLowerCase();
     return track.includes(code) || name.includes(code);
   });
 
@@ -858,7 +823,6 @@ async function searchTracking(type){
     if(e.key === "Enter") searchTracking(t);
   });
 });
-</script>
 
 /* ========================= HERO DINÁMICO + Tabs ========================= */
 (function(){
