@@ -647,7 +647,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
   </section>
@@ -697,20 +696,34 @@ function normalizeImageUrl(url){
   if(url.includes("googleusercontent")) return url;
   return url;
 }
-function safe(r,keys){ for(const k of keys){ if(r && r[k]) return r[k]; } return ""; }
+
+function safe(r,keys){
+  for(const k of keys){
+    if(r && r[k] != null && String(r[k]).trim() !== "") return String(r[k]).trim();
+  }
+  return "";
+}
 
 function parseDate(dateString){
   if(!dateString) return 0;
-  const [datePart, timePart] = (dateString + "").split(" ");
+  const raw = String(dateString).trim();
+  const [datePart, timePart] = raw.split(" ");
   if(!datePart || !timePart) return 0;
   const [day, month, year] = datePart.split("/");
   const [hour, minute, second] = timePart.split(":");
-  return new Date(parseInt(year,10), parseInt(month,10)-1, parseInt(day,10), parseInt(hour,10), parseInt(minute,10), parseInt(second,10)).getTime();
+  return new Date(
+    parseInt(year,10),
+    parseInt(month,10)-1,
+    parseInt(day,10),
+    parseInt(hour || "0",10),
+    parseInt(minute || "0",10),
+    parseInt(second || "0",10)
+  ).getTime();
 }
 
 function formatFechaBonita(dateString){
   if(!dateString) return "";
-  const raw = (dateString + "").trim();
+  const raw = String(dateString).trim();
   const [datePart, timePart] = raw.split(" ");
   if(!datePart || !timePart) return raw;
 
@@ -728,10 +741,20 @@ function formatFechaBonita(dateString){
   if(hour12 === 0) hour12 = 12;
 
   const mesNombre = meses[m-1] || month;
-  const min2 = String(mm).padStart(2,"0");
+  const min2 = String(mm || "00").padStart(2,"0");
   const sec2 = String(ss || "00").padStart(2,"0");
 
   return `${d} de ${mesNombre}, ${y} ${hour12}:${min2}:${sec2} ${ampm}`;
+}
+
+function cleanRow(row){
+  const clean = {};
+  Object.keys(row || {}).forEach(key=>{
+    const cleanKey = String(key || "").trim();
+    const value = row[key];
+    clean[cleanKey] = typeof value === "string" ? value.trim() : value;
+  });
+  return clean;
 }
 
 function renderTable(list,type){
@@ -739,7 +762,11 @@ function renderTable(list,type){
   const empty = document.getElementById(`empty${type}`);
   container.innerHTML = "";
   empty.style.display = "none";
-  if(!list.length){ empty.style.display="block"; return; }
+
+  if(!list.length){
+    empty.style.display = "block";
+    return;
+  }
 
   list.sort((a,b)=>parseDate(safe(b,["Fecha","FECHA"])) - parseDate(safe(a,["Fecha","FECHA"])));
   if(type === "Compra") list = list.slice(0,40);
@@ -758,50 +785,74 @@ function renderTable(list,type){
     const firma = normalizeImageUrl(safe(r,["Firma url","Firma URL"]));
 
     let html = `<div class="result-block">`;
-    html += `<p><strong>Fecha:</strong> ${fecha}</p>`;
-    html += `<p><strong>Tracking:</strong> ${track}</p>`;
+    html += `<p><strong>Fecha:</strong> ${fecha || "-"}</p>`;
+    html += `<p><strong>Tracking:</strong> ${track || "-"}</p>`;
+
     if(type === "Compra"){
-      html += `<p><strong>Nombre:</strong> ${nombre}</p>`;
-      html += `<p><strong>Agente:</strong> ${agente}</p>`;
+      html += `<p><strong>Nombre:</strong> ${nombre || "-"}</p>`;
+      html += `<p><strong>Agente:</strong> ${agente || "-"}</p>`;
     } else {
-      html += `<p><strong>Status:</strong> <span class="status-pill">${status}</span></p>`;
-      html += `<p><strong>Agente:</strong> ${agente}</p>`;
+      html += `<p><strong>Status:</strong> <span class="status-pill">${status || "Sin status"}</span></p>`;
+      html += `<p><strong>Agente:</strong> ${agente || "-"}</p>`;
     }
+
     html += `<div class="detail-actions">`;
     if(foto)  html += `<button class="view-btn" type="button" onclick="window.open('${foto}','_blank')">📷 Ver foto</button>`;
     if(foto2) html += `<button class="view-btn" type="button" onclick="window.open('${foto2}','_blank')">📷 Ver foto 2</button>`;
     if(foto3) html += `<button class="view-btn" type="button" onclick="window.open('${foto3}','_blank')">📷 Ver foto 3</button>`;
     if(type !== "Compra" && firma) html += `<button class="view-btn" type="button" onclick="window.open('${firma}','_blank')">✍️ Ver firma</button>`;
     html += `</div></div>`;
+
     container.insertAdjacentHTML("beforeend", html);
+  });
+}
+
+async function fetchCsvRows(link){
+  return new Promise(resolve=>{
+    const sep = link.includes("?") ? "&" : "?";
+    Papa.parse(link + sep + "t=" + Date.now(), {
+      download:true,
+      header:true,
+      skipEmptyLines:true,
+      complete:res=>{
+        const rows = Array.isArray(res.data) ? res.data.map(cleanRow) : [];
+        resolve(rows);
+      },
+      error:()=>resolve([])
+    });
   });
 }
 
 async function searchTracking(type){
   const input = document.getElementById(`search${type}`);
+  const container = document.getElementById(`results${type}`);
+  const empty = document.getElementById(`empty${type}`);
   const code = (input.value || "").trim().toLowerCase();
+
   if(!code) return;
 
-  let data = [];
+  container.innerHTML = `<div class="result-block"><p><strong>Buscando...</strong></p></div>`;
+  empty.style.display = "none";
+
   const links = Array.isArray(urls[type]) ? urls[type] : [urls[type]];
-  for(const link of links){
-    await new Promise(resolve=>{
-      const sep = link.includes("?") ? "&" : "?";
-      Papa.parse(link + sep + "t=" + Date.now(),{
-        download:true, header:true, skipEmptyLines:true,
-        complete:res=>{ data = data.concat(res.data || []); resolve(); },
-        error:()=>resolve()
-      });
+
+  try{
+    const results = await Promise.all(links.map(fetchCsvRows));
+    let data = results.flat();
+
+    const filtered = data.filter(r=>{
+      const track = safe(r,["Tracking","Tracking #","Orden","ORDEN"]).toLowerCase();
+      const name  = safe(r,["Nombre","Cliente","CLIENTE"]).toLowerCase();
+      return track.includes(code) || name.includes(code);
     });
+
+    renderTable(filtered, type);
+  }catch(err){
+    console.error("Error buscando en " + type, err);
+    container.innerHTML = "";
+    empty.textContent = "Hubo un error al buscar.";
+    empty.style.display = "block";
   }
-
-  const filtered = data.filter(r=>{
-    const track = safe(r,["Tracking","Tracking #","Orden","ORDEN"]).toLowerCase();
-    const name  = safe(r,["Nombre","Cliente"]).toLowerCase();
-    return track.includes(code) || name.includes(code);
-  });
-
-  renderTable(filtered, type);
 }
 
 ["Maritimo","Aereo","Compra"].forEach(t=>{
@@ -810,6 +861,7 @@ async function searchTracking(type){
   });
 });
 
+/* ========================= HERO DINÁMICO + Tabs ========================= */
 (function(){
   const heroTitle = document.getElementById("heroTitle");
   const heroText  = document.getElementById("heroText");
@@ -875,6 +927,7 @@ async function searchTracking(type){
   setHero("tabTrack");
 })();
 
+/* ========================= Cotización ========================= */
 document.addEventListener("DOMContentLoaded", ()=>{
   const chooseMar = document.getElementById("chooseMar");
   const chooseAir = document.getElementById("chooseAir");
@@ -927,6 +980,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
     marVolPanel.style.display  = isVol ? "block" : "none";
     marPesoPanel.style.display = isVol ? "none"  : "block";
   }
+
   marVolTab.addEventListener("click", ()=>setMarMode("vol"));
   marPesoTab.addEventListener("click", ()=>setMarMode("peso"));
 
@@ -937,6 +991,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
     const rate = (lbs > 20) ? 6.5 : 7;
     out.innerHTML = `Total aproximado: <b>$${money(lbs * rate)}</b>`;
   });
+
   document.getElementById("calcBtnAereoClear").addEventListener("click", ()=>{
     document.getElementById("calcAereoLbs").value = "";
     document.getElementById("calcResA").textContent = "";
@@ -948,12 +1003,14 @@ document.addEventListener("DOMContentLoaded", ()=>{
     if(lbs > 99) return 2.0;
     return 2.05;
   }
+
   document.getElementById("calcBtnMarPeso").addEventListener("click", ()=>{
     const lbs = num("calcMarLbs");
     const out = document.getElementById("calcResM");
     if(lbs <= 0){ out.textContent = "Ingresá un peso válido."; return; }
     out.innerHTML = `Total aproximado: <b>$${money(lbs * rateMar(lbs))}</b>`;
   });
+
   document.getElementById("calcBtnMarPesoClear").addEventListener("click", ()=>{
     document.getElementById("calcMarLbs").value = "";
     document.getElementById("calcResM").textContent = "";
@@ -992,9 +1049,8 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
 <div style="max-width:900px; margin:0 auto 40px; padding:0 14px; font-size:13px; line-height:1.5; color:#64748b;">
 </div>
-</body>
-<footer style="margin-top:60px; padding:30px 20px; text-align:center; border-top:1px solid rgba(0,0,0,.1); font-size:14px; color:#64748b;">
 
+<footer style="margin-top:60px; padding:30px 20px; text-align:center; border-top:1px solid rgba(0,0,0,.1); font-size:14px; color:#64748b;">
   <div style="margin-bottom:10px;">
     <b>Maura International Shipping & Services</b>
   </div>
@@ -1014,6 +1070,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
        Terms & Conditions
     </a>
   </div>
-
 </footer>
+
+</body>
 </html>
